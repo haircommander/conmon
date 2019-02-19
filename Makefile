@@ -11,10 +11,10 @@ ETCDIR ?= ${DESTDIR}/etc
 .PHONY: all
 all: bin bin/conmon
 
-override LIBS += $(shell pkg-config --libs glib-2.0)
+override LIBS += $(shell pkg-config --libs glib-2.0 libsystemd)
 
 CFLAGS ?= -std=c99 -Os -Wall -Wextra
-override CFLAGS += $(shell pkg-config --cflags glib-2.0) -DVERSION=\"$(VERSION)\" -DGIT_COMMIT=\"$(GIT_COMMIT)\"
+override CFLAGS += $(shell pkg-config --cflags glib-2.0 libsystemd) -DVERSION=\"$(VERSION)\" -DGIT_COMMIT=\"$(GIT_COMMIT)\"
 
 bin/conmon: src/conmon.o src/cmsg.o | bin
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)

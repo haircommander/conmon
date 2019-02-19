@@ -19,6 +19,7 @@
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <syslog.h>
+#include <systemd/sd-journal.h>
 #include <unistd.h>
 #include <inttypes.h>
 
@@ -101,6 +102,7 @@ static gboolean opt_no_new_keyring = FALSE;
 static char *opt_exit_command = NULL;
 static gchar **opt_exit_args = NULL;
 static gboolean opt_replace_listen_pid = FALSE;
+static gboolean opt_log_to_journal = FALSE;
 static char *opt_log_level = NULL;
 static GOptionEntry opt_entries[] = {
 	{"terminal", 't', 0, G_OPTION_ARG_NONE, &opt_terminal, "Terminal", NULL},
@@ -128,6 +130,7 @@ static GOptionEntry opt_entries[] = {
 	{"exit-command-arg", 0, 0, G_OPTION_ARG_STRING_ARRAY, &opt_exit_args,
 	 "Additional arg to pass to the exit command.  Can be specified multiple times", NULL},
 	{"log-path", 'l', 0, G_OPTION_ARG_STRING, &opt_log_path, "Log file path", NULL},
+	{"log-to-journal", 0, 0, G_OPTION_ARG_NONE, &opt_log_to_journal, "Log to journald as wel as log-path", NULL},
 	{"timeout", 'T', 0, G_OPTION_ARG_INT, &opt_timeout, "Timeout in seconds", NULL},
 	{"log-size-max", 0, 0, G_OPTION_ARG_INT64, &opt_log_size_max, "Maximum size of log file", NULL},
 	{"socket-dir-path", 0, 0, G_OPTION_ARG_STRING, &opt_socket_path, "Location of container attach sockets", NULL},
@@ -713,9 +716,11 @@ static gboolean tty_hup_timeout_cb(G_GNUC_UNUSED gpointer user_data)
 
 static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 {
-	/* We use one extra byte at the start, which we don't read into, instead
-	   we use that for marking the pipe when we write to the attached socket */
-	char real_buf[STDIO_BUF_SIZE + 1];
+	/* We use two extra bytes. One at the start, which we don't read into, instead
+	   we use that for marking the pipe when we write to the attached socket.
+	   One at the end to guarentee a null-terminated buffer for journald logging*/
+
+	char real_buf[STDIO_BUF_SIZE + 2];
 	char *buf = real_buf + 1;
 	ssize_t num_read = 0;
 	size_t i;
@@ -732,6 +737,14 @@ static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 		nwarnf("stdio_input read failed %s", strerror(errno));
 		return false;
 	} else {
+		if (opt_log_to_journal) {
+			// Always null terminate the buffer, just in case.
+			buf[num_read] = '\0';
+			if (sd_journal_print(LOG_NOTICE, "%s", buf) < 0) {
+				nwarn("sd_journal_print failed");
+				return G_SOURCE_CONTINUE;
+			}
+		}
 		if (write_k8s_log(log_fd, pipe, buf, num_read) < 0) {
 			nwarn("write_k8s_log failed");
 			return G_SOURCE_CONTINUE;
