@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "ctr_logging.h"
+#include "config.h"
 #include <string.h>
 
 // if the systemd development files were found, we can log to systemd
@@ -156,6 +157,9 @@ bool write_to_logs(stdpipe_t pipe, char *buf, ssize_t num_read)
 }
 
 
+static char journald_stdin_buf[STDIO_BUF_SIZE + 1];
+static int journald_stdin_buf_it = 0;
+
 /* write to systemd journal. If the pipe is stdout, write with notice priority,
  * otherwise, write with error priority
  */
@@ -172,6 +176,7 @@ int write_journald(int pipe, char *buf, ssize_t buflen)
 	ptrdiff_t line_len = 0;
 
 	while (buflen > 0) {
+		bool reset_buffer_after_print = false;
 		writev_buffer_t bufv = {0};
 
 		bool partial = get_line_len(&line_len, buf, buflen);
@@ -180,18 +185,36 @@ int write_journald(int pipe, char *buf, ssize_t buflen)
 		 * hack to emulate separate strings.
 		 */
 		char tmp_line_end = buf[line_len];
+		char *buf_to_send = buf;
+		int line_len_to_use = line_len;
 		buf[line_len] = '\0';
+
+		if (partial && buflen < STDIO_BUF_SIZE + 1) {
+			nwarnf("got a partial line");
+			if (journald_stdin_buf_it + line_len > STDIO_BUF_SIZE) {
+				nwarnf("input has overflowed buffer. do something");
+			}
+			strcpy(journald_stdin_buf + journald_stdin_buf_it, buf);
+			journald_stdin_buf_it += line_len;
+			goto iterate;
+		} else if (!partial && journald_stdin_buf_it != 0) {
+			if (journald_stdin_buf_it + line_len > STDIO_BUF_SIZE) {
+				nwarnf("input has overflowed buffer. do something");
+			}
+			strcpy(journald_stdin_buf + journald_stdin_buf_it, buf);
+			journald_stdin_buf_it += line_len;
+			journald_stdin_buf[++journald_stdin_buf_it] = '\0';
+			buf_to_send = journald_stdin_buf;
+			reset_buffer_after_print = true;
+			line_len_to_use = journald_stdin_buf_it;
+		}
 
 		/* When using writev_buffer_append_segment here, we should never approach the number of
 		 * entries necessary to flush the buffer. Therefore, the fd passed in is -1.
 		 */
-		_cleanup_free_ char *message = g_strdup_printf("MESSAGE=%s", buf);
-		if (writev_buffer_append_segment(-1, &bufv, message, line_len + MESSAGE_EQ_LEN) < 0)
+		_cleanup_free_ char *message = g_strdup_printf("MESSAGE=%s", buf_to_send);
+		if (writev_buffer_append_segment(-1, &bufv, message, line_len_to_use + MESSAGE_EQ_LEN) < 0)
 			return -1;
-
-		/* Restore state of the buffer */
-		buf[line_len] = tmp_line_end;
-
 
 		if (writev_buffer_append_segment(-1, &bufv, container_id_full, cuuid_len + CID_FULL_EQ_LEN) < 0)
 			return -1;
@@ -215,9 +238,14 @@ int write_journald(int pipe, char *buf, ssize_t buflen)
 			pwarn(strerror(err));
 			return err;
 		}
-
+	iterate:
 		buf += line_len;
 		buflen -= line_len;
+		if (reset_buffer_after_print) {
+			journald_stdin_buf_it = 0;
+		}
+		/* Restore state of the buffer */
+		buf[line_len] = tmp_line_end;
 	}
 	return 0;
 }
