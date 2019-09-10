@@ -77,6 +77,7 @@ static char *opt_exit_command = NULL;
 static gchar **opt_exit_args = NULL;
 static gboolean opt_replace_listen_pid = FALSE;
 static char *opt_log_level = NULL;
+static gboolean opt_expect_ctl_fifo = FALSE;
 static GOptionEntry opt_entries[] = {
 	{"terminal", 't', 0, G_OPTION_ARG_NONE, &opt_terminal, "Terminal", NULL},
 	{"stdin", 'i', 0, G_OPTION_ARG_NONE, &opt_stdin, "Stdin", NULL},
@@ -116,6 +117,7 @@ static GOptionEntry opt_entries[] = {
 	{"version", 0, 0, G_OPTION_ARG_NONE, &opt_version, "Print the version and exit", NULL},
 	{"syslog", 0, 0, G_OPTION_ARG_NONE, &opt_syslog, "Log to syslog (use with cgroupfs cgroup manager)", NULL},
 	{"log-level", 0, 0, G_OPTION_ARG_STRING, &opt_log_level, "Print debug logs based on log level", NULL},
+	{"caller-create-fifo", 0, 0, G_OPTION_ARG_NONE, &opt_expect_ctl_fifo, "Create the ctl file ", NULL},
 	{NULL, 0, 0, 0, NULL, NULL, NULL}};
 
 #define CGROUP_ROOT "/sys/fs/cgroup"
@@ -676,7 +678,7 @@ static void resize_winsz(int height, int width)
 	ws.ws_col = width;
 	ret = ioctl(masterfd_stdout, TIOCSWINSZ, &ws);
 	if (ret == -1) {
-		nwarn("Failed to set process pty terminal size");
+		pwarn("Failed to set process pty terminal size");
 	}
 }
 
@@ -974,7 +976,9 @@ static int setup_terminal_control_fifo()
 
 	/* Setup fifo for reading in terminal resize and other stdio control messages */
 
-	if (mkfifo(ctl_fifo_path, 0666) == -1)
+
+
+	if (!opt_expect_ctl_fifo && mkfifo(ctl_fifo_path, 0666) == -1)
 		pexitf("Failed to mkfifo at %s", ctl_fifo_path);
 
 	terminal_ctrl_fd = open(ctl_fifo_path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
