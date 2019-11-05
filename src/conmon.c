@@ -42,7 +42,6 @@
 #define CGROUP2_SUPER_MAGIC 0x63677270
 #endif
 
-static int sync_pipe_fd = -1;
 static volatile pid_t container_pid = -1;
 static volatile pid_t create_pid = -1;
 static gboolean opt_version = FALSE;
@@ -753,6 +752,11 @@ static gboolean ctrl_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNU
 	return G_SOURCE_CONTINUE;
 }
 
+static bool is_exec_v1() {
+	return opt_api_version >= 1 && opt_exec && opt_terminal;
+}
+
+
 static gboolean terminal_accept_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
 	const char *csname = user_data;
@@ -798,7 +802,8 @@ exit:
 	/* now that we've set masterfd_stdout, we can register the ctrl_cb
 	 * if we didn't set it here, we'd risk attempting to run ioctl on
 	 * a negative fd, and fail to resize the window */
-	g_unix_fd_add(terminal_ctrl_fd, G_IO_IN, ctrl_cb, NULL);
+	if (is_exec_v1())
+		g_unix_fd_add(terminal_ctrl_fd, G_IO_IN, ctrl_cb, NULL);
 
 	/* Clean up everything */
 	close(connfd);
@@ -836,7 +841,7 @@ static void container_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED 
 	   we risk falsely telling the caller of conmon the runtime call failed (because runtime status
 	   wouldn't be set). Instead, don't quit the loop until runtime exit is also called, which should
 	   shortly after. */
-	if (opt_api_version >= 1 && create_pid > 0 && opt_exec && opt_terminal) {
+	if (is_exec_v1() && create_pid > 0) {
 		ndebugf("container pid return handled before runtime pid return. Not quitting yet.");
 		return;
 	}
@@ -844,7 +849,7 @@ static void container_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED 
 	g_main_loop_quit(main_loop);
 }
 
-static void write_sync_fd(int fd, int res, const char *message)
+static void write_sync_fd(int sync_pipe_fd, int res, const char *message)
 {
 	_cleanup_free_ char *escaped_message = NULL;
 	_cleanup_free_ char *json = NULL;
@@ -859,7 +864,7 @@ static void write_sync_fd(int fd, int res, const char *message)
 
 	ssize_t len;
 
-	if (fd == -1)
+	if (sync_pipe_fd == -1)
 		return;
 
 	if (message) {
@@ -870,7 +875,7 @@ static void write_sync_fd(int fd, int res, const char *message)
 	}
 
 	len = strlen(json);
-	if (write_all(fd, json, len) != len) {
+	if (write_all(sync_pipe_fd, json, len) != len) {
 		pexit("Unable to send container stderr message to parent");
 	}
 }
@@ -995,6 +1000,11 @@ static int setup_terminal_control_fifo()
 		pexit("Failed to open dummy writer for fifo");
 
 	ninfof("terminal_ctrl_fd: %d", terminal_ctrl_fd);
+
+	//TODO FIXME revisit
+	if (!is_exec_v1())
+		g_unix_fd_add(terminal_ctrl_fd, G_IO_IN, ctrl_cb, NULL);
+
 	return dummyfd;
 }
 
@@ -1080,11 +1090,6 @@ static void do_exit_command()
 	gchar **args;
 	size_t n_args = 0;
 
-	if (sync_pipe_fd > 0) {
-		close(sync_pipe_fd);
-		sync_pipe_fd = -1;
-	}
-
 	if (signal(SIGCHLD, SIG_DFL) == SIG_ERR) {
 		_pexit("Failed to reset signal for SIGCHLD");
 	}
@@ -1143,6 +1148,7 @@ int main(int argc, char *argv[])
 	int slavefd_stderr = -1;
 	char buf[BUF_SIZE];
 	int num_read;
+	int sync_pipe_fd = -1;
 	int attach_pipe_fd = -1;
 	int start_pipe_fd = -1;
 	GError *error = NULL;
@@ -1327,7 +1333,8 @@ int main(int argc, char *argv[])
 		/* now that we've set masterfd_stdout, we can register the ctrl_cb
 		 * if we didn't set it here, we'd risk attempting to run ioctl on
 		 * a negative fd, and fail to resize the window */
-		g_unix_fd_add(terminal_ctrl_fd, G_IO_IN, ctrl_cb, NULL);
+		if (is_exec_v1())
+			g_unix_fd_add(terminal_ctrl_fd, G_IO_IN, ctrl_cb, NULL);
 	}
 
 	/* We always create a stderr pipe, because that way we can capture
@@ -1593,7 +1600,7 @@ int main(int argc, char *argv[])
 	 * conmon to only send one value down this pipe, which will later be the exit code
 	 * Thus, if we are legacy and we are exec, skip this write.
 	 */
-	if ((opt_api_version >= 1 || !opt_exec) && sync_pipe_fd >= 0)
+	if (opt_api_version >= 1 || !opt_exec)
 		write_sync_fd(sync_pipe_fd, container_pid, NULL);
 
 	setup_oom_handling(container_pid);
@@ -1623,7 +1630,7 @@ int main(int argc, char *argv[])
 	       status if it is a quickly exiting command. We only want to run the loop if
 	       this hasn't happened yet.
 	*/
-	if (opt_api_version < 1 || !opt_exec || !opt_terminal || container_status < 0)
+	if (!is_exec_v1() || container_status < 0)
 		g_main_loop_run(main_loop);
 
 	check_cgroup2_oom();
@@ -1685,7 +1692,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Send the command exec exit code back to the parent */
-	if (opt_exec && sync_pipe_fd >= 0)
+	if (opt_exec)
 		write_sync_fd(sync_pipe_fd, exit_status, exit_message);
 
 	if (attach_symlink_dir_path != NULL && unlink(attach_symlink_dir_path) == -1 && errno != ENOENT)
