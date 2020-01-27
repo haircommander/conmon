@@ -1329,7 +1329,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (opt_container_pid_file == NULL) {
-		default_pid_file = g_strdup_printf("%s/pidfile-%s", cwd, opt_cid);
+		default_pid_file = g_strdup_printf("%s/pidfile-%s", opt_bundle_path, opt_cid);
 		opt_container_pid_file = default_pid_file;
 	}
 

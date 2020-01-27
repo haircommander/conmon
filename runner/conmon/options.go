@@ -62,6 +62,30 @@ func WithLogDriver(driver, path string) ConmonOption {
 	}
 }
 
+func WithExec() ConmonOption {
+	return func(ci *ConmonInstance) error {
+		return ci.addArgs("--exec")
+	}
+}
+
+func WithRestorePath(path string) ConmonOption {
+	return func(ci *ConmonInstance) error {
+		return ci.addArgs("--restore", path)
+	}
+}
+
+func WithExecAttach() ConmonOption {
+	return func(ci *ConmonInstance) error {
+		return ci.addArgs("--exec-attach")
+	}
+}
+
+func WithAPIV1() ConmonOption {
+	return func(ci *ConmonInstance) error {
+		return ci.addArgs("--api-version", "1")
+	}
+}
+
 func (ci *ConmonInstance) addArgs(args ...string) error {
 	ci.args = append(ci.args, args...)
 	return nil
