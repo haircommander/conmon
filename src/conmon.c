@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include "utils.h"
 #include "ctr_logging.h"
+#include "spoof_oom.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -80,6 +81,7 @@ static gchar **opt_exit_args = NULL;
 static gboolean opt_replace_listen_pid = FALSE;
 static char *opt_log_level = NULL;
 static char *opt_log_tag = NULL;
+static gboolean opt_oom_test = TRUE; // TODO FIXME make FALSE by default
 static GOptionEntry opt_entries[] = {
 	{"terminal", 't', 0, G_OPTION_ARG_NONE, &opt_terminal, "Terminal", NULL},
 	{"stdin", 'i', 0, G_OPTION_ARG_NONE, &opt_stdin, "Stdin", NULL},
@@ -122,6 +124,7 @@ static GOptionEntry opt_entries[] = {
 	{"syslog", 0, 0, G_OPTION_ARG_NONE, &opt_syslog, "Log to syslog (use with cgroupfs cgroup manager)", NULL},
 	{"log-level", 0, 0, G_OPTION_ARG_STRING, &opt_log_level, "Print debug logs based on log level", NULL},
 	{"log-tag", 0, 0, G_OPTION_ARG_STRING, &opt_log_tag, "Additional tag to use for logging", NULL},
+	{"test-oom", 0, 0, G_OPTION_ARG_NONE, &opt_oom_test, "A TESTING ONLY flag that has conmon consume a lot of memory (to be OOM killed) after the container is launched", NULL},
 	{NULL, 0, 0, 0, NULL, NULL, NULL}};
 
 #define CGROUP_ROOT "/sys/fs/cgroup"
@@ -1280,7 +1283,7 @@ int main(int argc, char *argv[])
 	oom_score_fd = open("/proc/self/oom_score_adj", O_WRONLY);
 	if (oom_score_fd < 0) {
 		ndebugf("failed to open /proc/self/oom_score_adj: %s\n", strerror(errno));
-	} else {
+	} else if (!opt_oom_test) {
 		if (write(oom_score_fd, OOM_SCORE, strlen(OOM_SCORE)) < 0) {
 			ndebugf("failed to write to /proc/self/oom_score_adj: %s\n", strerror(errno));
 		}
@@ -1718,6 +1721,15 @@ int main(int argc, char *argv[])
 	}
 
 	check_child_processes(pid_to_handler);
+
+	/* note: this option should be only used for testing purposes
+	   while it's possible conmon gets OOM killed in the wild, it's incredibly
+	   hard to test deterministically. Instead, we add this option to simulate a situation
+	   in which conmon accidentally is chosen by the OOM killer.
+	*/
+	if (opt_oom_test) {
+		spoof_oom();
+	}
 	/* There are three cases we want to run this main loop:
 	   1. If we are using the legacy API
 	   2. if we are running create or restore

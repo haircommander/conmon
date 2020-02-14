@@ -62,7 +62,7 @@ containerized: bin
 static:
 	$(MAKE) git-vars bin/conmon PKG_CONFIG='$(PKG_CONFIG) --static' CFLAGS='-static' LDFLAGS='$(LDFLAGS) -s -w -static' LIBS='$(LIBS)'
 
-bin/conmon: src/conmon.o src/cmsg.o src/ctr_logging.o src/utils.o | bin
+bin/conmon: src/conmon.o src/cmsg.o src/ctr_logging.o src/utils.o src/spoof_oom.o | bin
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 %.o: %.c
@@ -81,7 +81,9 @@ src/utils.o: src/utils.c src/utils.h
 
 src/ctr_logging.o: src/ctr_logging.c src/ctr_logging.h src/utils.h
 
-src/conmon.o: src/conmon.c src/cmsg.h src/config.h src/utils.h src/ctr_logging.h
+src/spoof_oom.o: src/spoof_oom.c src/spoof_oom.h
+
+src/conmon.o: src/conmon.c src/cmsg.h src/config.h src/utils.h src/ctr_logging.h src/spoof_oom.h
 
 bin:
 	mkdir -p bin
