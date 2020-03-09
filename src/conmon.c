@@ -541,6 +541,15 @@ static gboolean oom_cb_cgroup_v1(int fd, GIOCondition condition, gpointer user_d
 	char *cgroup_event_control_path = (char *)user_data;
 	uint64_t event_count;
 	ssize_t num_read = 0;
+	gboolean cgroup_removed = FALSE;
+
+	/* Attempt to read the container's cgroup path.
+	 * If it does not exist, we know one of the events on this fd was a cgroup removal
+	 */
+	if (access(cgroup_event_control_path, F_OK) < 0) {
+		ndebugf("Memory cgroup removal event received");
+		cgroup_removed = TRUE;
+	}
 
 	if ((condition & G_IO_IN) == 0) {
 		/* End of input */
@@ -570,23 +579,21 @@ static gboolean oom_cb_cgroup_v1(int fd, GIOCondition condition, gpointer user_d
 
 	ndebugf("Memory cgroup event count: %ld", (long)event_count);
 	if (event_count == 0) {
-		nwarn("Unexpected event count (zero)");
+		nwarn("Unexpected event count (zero) when reading for oom event");
 		return G_SOURCE_CONTINUE;
 	}
-	/* attempt to read the container's cgroup path.
-	 * if we can't, the cgroup has probably been cleaned up.
-	 * In all likelihood, this means we received an event on the eventfd
-	 * because the memory.oom_control file was removed, not because of an OOM
-	 */
-	if (access(cgroup_event_control_path, F_OK) < 0) {
-		ndebugf("Memory cgroup removal event received");
-		/* if event_count == 1, we know the only event triggered was a cgroup removal
-		 * if it was greater than 1, we know the cgroup oomed, and then was cleaned up.
-		 */
-		if (event_count == 1)
-			return G_SOURCE_CONTINUE;
-	}
 
+	/* if there's only one event, and the cgroup was removed
+	 * we know the event was for a cgroup removal, not an OOM kill
+	 */
+	if (event_count == 1 && cgroup_removed)
+		return G_SOURCE_CONTINUE;
+
+	/* we catch the two other cases here:
+	 * container was OOM killed and the cgroup was removed (event count 2)
+	 * container was OOM killed (event count 1)
+	 * both are OOM events
+	 */
 	ninfo("OOM event received");
 	write_oom_files();
 
