@@ -1198,7 +1198,7 @@ static void setup_oom_handling_cgroup_v1(int pid)
 	if ((ofd = open(memory_cgroup_file_oom_path, O_RDONLY | O_CLOEXEC)) == -1)
 		pexitf("Failed to open %s", memory_cgroup_file_oom_path);
 
-	if ((oom_event_fd = eventfd(0, EFD_CLOEXEC)) == -1)
+	if ((oom_event_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)) == -1)
 		pexit("Failed to create eventfd");
 
 	_cleanup_free_ char *data = g_strdup_printf("%d %d", oom_event_fd, ofd);
