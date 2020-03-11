@@ -331,6 +331,7 @@ static gboolean tty_hup_timeout_scheduled = false;
 
 static gboolean tty_hup_timeout_cb(G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	tty_hup_timeout_scheduled = false;
 	g_unix_fd_add(masterfd_stdout, G_IO_IN, stdio_cb, GINT_TO_POINTER(STDOUT_PIPE));
 	return G_SOURCE_REMOVE;
@@ -338,6 +339,7 @@ static gboolean tty_hup_timeout_cb(G_GNUC_UNUSED gpointer user_data)
 
 static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	/* We use two extra bytes. One at the start, which we don't read into, instead
 	   we use that for marking the pipe when we write to the attached socket.
 	   One at the end to guarentee a null-terminated buffer for journald logging*/
@@ -350,10 +352,16 @@ static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 	if (eof)
 		*eof = false;
 
+	nwarnf ("__FUNCTION__ = %s; reading from %d\n", __FUNCTION__, fd);
 	num_read = read(fd, buf, STDIO_BUF_SIZE);
+	nwarnf ("__FUNCTION__ = %s; read: %ld\n", __FUNCTION__, num_read);
 	if (num_read == 0) {
-		if (eof)
+		if (eof) {
 			*eof = true;
+			nwarnf ("__FUNCTION__ = %s; num read  0 %d\n", __FUNCTION__, *eof);
+		} else {
+			nwarnf ("__FUNCTION__ = %s; num read  0 no eof\n", __FUNCTION__);
+		}
 		return false;
 	} else if (num_read < 0) {
 		nwarnf("stdio_input read failed %s", strerror(errno));
@@ -361,6 +369,10 @@ static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 	} else {
 		// Always null terminate the buffer, just in case.
 		buf[num_read] = '\0';
+
+		nwarnf ("__FUNCTION__ = %s; got here:\n", __FUNCTION__);
+
+		nwarnf ("__FUNCTION__ = %s; read this: %s\n", __FUNCTION__, buf);
 
 		bool written = write_to_logs(pipe, buf, num_read);
 		if (!written)
@@ -445,6 +457,8 @@ static void check_child_processes(GHashTable *pid_to_handler)
 
 static gboolean on_sigusr1_cb(gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
+	tty_hup_timeout_scheduled = false;
 	GHashTable *pid_to_handler = (GHashTable *)user_data;
 	check_child_processes(pid_to_handler);
 	return G_SOURCE_CONTINUE;
@@ -452,6 +466,8 @@ static gboolean on_sigusr1_cb(gpointer user_data)
 
 static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
+	tty_hup_timeout_scheduled = false;
 	stdpipe_t pipe = GPOINTER_TO_INT(user_data);
 	gboolean read_eof = FALSE;
 	gboolean has_input = (condition & G_IO_IN) != 0;
@@ -467,10 +483,12 @@ static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 
 	/* Read any data before handling hup */
 	if (has_input) {
+		nwarnf ("reading input __FUNCTION__ = %s\n", __FUNCTION__);
 		read_stdio(fd, pipe, &read_eof);
 	}
 
 	if (has_hup && opt_terminal && pipe == STDOUT_PIPE) {
+		nwarnf ("has huup, opt terminal and stdout __FUNCTION__ = %s\n", __FUNCTION__);
 		/* We got a HUP from the terminal master this means there
 		   are no open slaves ptys atm, and we will get a lot
 		   of wakeups until we have one, switch to polling
@@ -479,6 +497,7 @@ static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 		/* If we read some data this cycle, wait one more, maybe there
 		   is more in the buffer before we handle the hup */
 		if (has_input && !read_eof) {
+			nwarnf ("1 __FUNCTION__ = %s\n", __FUNCTION__);
 			return G_SOURCE_CONTINUE;
 		}
 
@@ -486,6 +505,7 @@ static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 			g_timeout_add(100, tty_hup_timeout_cb, NULL);
 		}
 		tty_hup_timeout_scheduled = true;
+		nwarnf ("2 __FUNCTION__ = %s\n", __FUNCTION__);
 		return G_SOURCE_REMOVE;
 	}
 
@@ -496,15 +516,18 @@ static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 		if (pipe == STDERR_PIPE)
 			masterfd_stderr = -1;
 
+		nwarnf ("3 __FUNCTION__ = %s\n", __FUNCTION__);
 		close(fd);
 		return G_SOURCE_REMOVE;
 	}
 
+	nwarnf ("4 __FUNCTION__ = %s\n", __FUNCTION__);
 	return G_SOURCE_CONTINUE;
 }
 
 static gboolean timeout_cb(G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	timed_out = TRUE;
 	ninfo("Timed out, killing main loop");
 	g_main_loop_quit(main_loop);
@@ -538,6 +561,7 @@ static int write_oom_files()
  * used to verify the cgroup hasn't been cleaned up */
 static gboolean oom_cb_cgroup_v1(int fd, GIOCondition condition, gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	char *cgroup_event_control_path = (char *)user_data;
 	uint64_t event_count;
 	ssize_t num_read = 0;
@@ -636,6 +660,7 @@ static gboolean check_cgroup2_oom()
 
 static gboolean oom_cb_cgroup_v2(int fd, GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	size_t events_size = sizeof(struct inotify_event) + NAME_MAX + 1;
 	char events[events_size];
 	gboolean ret = G_SOURCE_REMOVE;
@@ -660,6 +685,7 @@ static gboolean oom_cb_cgroup_v2(int fd, GIOCondition condition, G_GNUC_UNUSED g
 
 static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	struct conn_sock_s *sock = (struct conn_sock_s *)user_data;
 	ssize_t num_read = 0;
 
@@ -705,6 +731,7 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 
 static gboolean attach_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	int conn_fd = accept(fd, NULL, NULL);
 	if (conn_fd == -1) {
 		if (errno != EWOULDBLOCK)
@@ -848,6 +875,7 @@ static gboolean process_terminal_ctrl_line(char *line)
  */
 static gboolean ctrl_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	return read_from_ctrl_buffer(fd, process_terminal_ctrl_line);
 }
 
@@ -874,11 +902,13 @@ static gboolean process_winsz_ctrl_line(char *line)
  */
 static gboolean ctrl_winsz_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	return read_from_ctrl_buffer(fd, process_winsz_ctrl_line);
 }
 
 static gboolean terminal_accept_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	const char *csname = user_data;
 	struct file_t console;
 	int connfd = -1;
@@ -943,6 +973,7 @@ static int get_exit_status(int status)
 
 static void runtime_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	runtime_status = status;
 	create_pid = -1;
 	g_main_loop_quit(main_loop);
@@ -950,6 +981,7 @@ static void runtime_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED gp
 
 static void container_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED gpointer user_data)
 {
+	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	if (get_exit_status(status) != 0) {
 		ninfof("container %d exited with status %d", pid, get_exit_status(status));
 	}
@@ -995,7 +1027,7 @@ static void write_sync_fd(int fd, int res, const char *message)
 
 	len = strlen(json);
 	if (write_all(fd, json, len) != len) {
-		pexit("Unable to send container stderr message to parent");
+		nexitf("Unable to send container stderr message to parent: %s", json);
 	}
 }
 
@@ -1308,7 +1340,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	set_conmon_logs(opt_log_level, opt_cid, opt_syslog, opt_log_tag);
+	set_conmon_logs(opt_log_level, opt_cuuid, opt_syslog, opt_log_tag);
 
 	oom_score_fd = open("/proc/self/oom_score_adj", O_WRONLY);
 	if (oom_score_fd < 0) {
@@ -1367,6 +1399,7 @@ int main(int argc, char *argv[])
 	}
 
 	configure_log_drivers(opt_log_path, opt_log_size_max, opt_cid, opt_name, opt_log_tag);
+	nwarnf("getting start pipe fd");
 
 	start_pipe_fd = get_pipe_fd_from_env("_OCI_STARTPIPE");
 	if (start_pipe_fd > 0) {
@@ -1382,7 +1415,7 @@ int main(int argc, char *argv[])
 		if (!opt_attach)
 			close(start_pipe_fd);
 	}
-
+	nwarnf("forking for real first time");
 	/* In the create-container case we double-fork in
 	   order to disconnect from the parent, as we want to
 	   continue in a daemon-like way */
@@ -1543,6 +1576,7 @@ int main(int argc, char *argv[])
 	/* Container name comes last. */
 	add_argv(runtime_argv, opt_cid, NULL);
 	end_argv(runtime_argv);
+	nwarnf("finished making args");
 
 	/* Setup endpoint for attach */
 	_cleanup_free_ char *attach_symlink_dir_path = NULL;
@@ -1569,6 +1603,7 @@ int main(int argc, char *argv[])
 	 * https://github.com/opencontainers/runtime-spec/pull/513. Hopefully this
 	 * won't be the case for very long.
 	 */
+	nwarnf("forking second time");
 
 	/* Create our container. */
 	create_pid = fork();
@@ -1624,9 +1659,7 @@ int main(int argc, char *argv[])
 		// or else we may lose output
 		if (opt_attach) {
 			if (start_pipe_fd > 0) {
-				ndebug("exec with attach is waiting for start message from parent");
 				num_read = read(start_pipe_fd, buf, BUF_SIZE);
-				ndebug("exec with attach got start message from parent");
 				if (num_read < 0) {
 					pexit("start-pipe read failed");
 				}
@@ -1676,8 +1709,10 @@ int main(int argc, char *argv[])
 		g_unix_fd_add(console_socket_fd, G_IO_IN, terminal_accept_cb, csname);
 		/* Process any SIGCHLD we may have missed before the signal handler was in place.  */
 		check_child_processes(pid_to_handler);
-		if (!opt_exec || !opt_terminal || container_status < 0)
+		if (!opt_exec || !opt_terminal || container_status < 0) {
+			nwarnf("about to run non-terminal exec main loop to catch sigchld");
 			g_main_loop_run(main_loop);
+		}
 	} else {
 		int ret;
 		/* Wait for our create child to exit with the return code. */
@@ -1734,8 +1769,10 @@ int main(int argc, char *argv[])
 	 * conmon to only send one value down this pipe, which will later be the exit code
 	 * Thus, if we are legacy and we are exec, skip this write.
 	 */
-	if ((opt_api_version >= 1 || !opt_exec) && sync_pipe_fd >= 0)
+	if ((opt_api_version >= 1 || !opt_exec) && sync_pipe_fd >= 0) {
+		nwarnf("about to write pid to sync fd %d", container_pid);
 		write_sync_fd(sync_pipe_fd, container_pid, NULL);
+	}
 
 	setup_oom_handling(container_pid);
 
@@ -1846,6 +1883,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Send the command exec exit code back to the parent */
+	nwarnf("about to write to sync fd %d, %s", exit_status, exit_message);
 	if (opt_exec && sync_pipe_fd >= 0)
 		write_sync_fd(sync_pipe_fd, exit_status, exit_message);
 
