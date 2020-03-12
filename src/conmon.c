@@ -432,6 +432,8 @@ static void check_child_processes(GHashTable *pid_to_handler)
 			continue;
 
 		if (pid < 0 && errno == ECHILD) {
+
+			nwarnf ("__FUNCTION__ = %s quitting main loop\n", __FUNCTION__);
 			g_main_loop_quit(main_loop);
 			return;
 		}
@@ -511,12 +513,22 @@ static gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 
 	if (read_eof || (has_hup && !has_input)) {
 		/* End of input */
-		if (pipe == STDOUT_PIPE)
+		if (pipe == STDOUT_PIPE) {
 			masterfd_stdout = -1;
-		if (pipe == STDERR_PIPE)
+			if (container_status >= 0 && masterfd_stderr < 0) {
+				nwarnf ("2 __FUNCTION__ = %s quitting main loop now\n", __FUNCTION__);
+				g_main_loop_quit(main_loop);
+			}
+		}
+		if (pipe == STDERR_PIPE) {
 			masterfd_stderr = -1;
+			if (container_status >= 0 && masterfd_stdout < 0) {
+				nwarnf ("2 __FUNCTION__ = %s quitting main loop now\n", __FUNCTION__);
+				g_main_loop_quit(main_loop);
+			}
+		}
 
-		nwarnf ("3 __FUNCTION__ = %s\n", __FUNCTION__);
+		nwarnf ("3 __FUNCTION__ = %s fd: %d\n", __FUNCTION__, fd);
 		close(fd);
 		return G_SOURCE_REMOVE;
 	}
@@ -530,6 +542,7 @@ static gboolean timeout_cb(G_GNUC_UNUSED gpointer user_data)
 	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	timed_out = TRUE;
 	ninfo("Timed out, killing main loop");
+	nwarnf ("__FUNCTION__ = %s quitting main loop\n", __FUNCTION__);
 	g_main_loop_quit(main_loop);
 	return G_SOURCE_REMOVE;
 }
@@ -690,12 +703,16 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 	ssize_t num_read = 0;
 
 	if ((condition & G_IO_IN) != 0) {
+		nwarnf("got some input");
 		num_read = splice(fd, NULL, masterfd_stdin, NULL, 1 << 20, 0);
-		if (num_read > 0)
+		if (num_read > 0) {
+			nwarnf("1 continuing");
 			return G_SOURCE_CONTINUE;
+		}
+		nwarnf("ended");
 
 		if (num_read < 0) {
-			if (errno != ESPIPE && errno != EINVAL) {
+			if (errno != ESPIPE && errno != EINVAL && errno != EAGAIN) {
 				nwarn("Failed to write to container stdin");
 			} else {
 				/* Fallback to read-write.  This may lock if the consumer
@@ -703,18 +720,22 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 				char buf[CONN_SOCK_BUF_SIZE];
 
 				num_read = read(fd, buf, CONN_SOCK_BUF_SIZE);
-				if (num_read < 0)
+				if (num_read < 0) {
+					nwarnf("2 continuing");
 					return G_SOURCE_CONTINUE;
+				}
 
 				if (num_read > 0 && masterfd_stdin >= 0) {
 					if (write_all(masterfd_stdin, buf, num_read) < 0) {
 						nwarn("Failed to write to container stdin");
 					}
+					nwarnf("3 continuing");
 					return G_SOURCE_CONTINUE;
 				}
 			}
 		}
 	}
+	nwarnf("no input");
 
 	/* End of input */
 	conn_sock_shutdown(sock, SHUT_RD);
@@ -726,6 +747,7 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 			ninfo("Not closing input");
 		}
 	}
+	nwarnf("shutting down connection");
 	return G_SOURCE_REMOVE;
 }
 
@@ -976,6 +998,7 @@ static void runtime_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED gp
 	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	runtime_status = status;
 	create_pid = -1;
+	nwarnf ("__FUNCTION__ = %s quitting main loop\n", __FUNCTION__);
 	g_main_loop_quit(main_loop);
 }
 
@@ -985,6 +1008,7 @@ static void container_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED 
 	if (get_exit_status(status) != 0) {
 		ninfof("container %d exited with status %d", pid, get_exit_status(status));
 	}
+	nwarnf("status is: %d", status);
 	container_status = status;
 	container_pid = -1;
 	/* In the case of a quickly exiting exec command, the container exit callback
@@ -992,11 +1016,13 @@ static void container_exit_cb(G_GNUC_UNUSED GPid pid, int status, G_GNUC_UNUSED 
 	   we risk falsely telling the caller of conmon the runtime call failed (because runtime status
 	   wouldn't be set). Instead, don't quit the loop until runtime exit is also called, which should
 	   shortly after. */
+	nwarnf("api version %d, create_pid %d, opt_exec %d, opt_terminal %d", opt_api_version, create_pid, opt_exec, opt_terminal);
 	if (opt_api_version >= 1 && create_pid > 0 && opt_exec && opt_terminal) {
-		ndebugf("container pid return handled before runtime pid return. Not quitting yet.");
+		nwarnf("container pid return handled before runtime pid return. Not quitting yet.");
 		return;
 	}
 
+	nwarnf ("__FUNCTION__ = %s quitting main loop\n", __FUNCTION__);
 	g_main_loop_quit(main_loop);
 }
 
@@ -1710,8 +1736,9 @@ int main(int argc, char *argv[])
 		/* Process any SIGCHLD we may have missed before the signal handler was in place.  */
 		check_child_processes(pid_to_handler);
 		if (!opt_exec || !opt_terminal || container_status < 0) {
-			nwarnf("about to run non-terminal exec main loop to catch sigchld");
+			nwarnf ("__FUNCTION__ = %s running main loop 1\n", __FUNCTION__);
 			g_main_loop_run(main_loop);
+			nwarnf ("__FUNCTION__ = %s quitting main loop 1\n", __FUNCTION__);
 		}
 	} else {
 		int ret;
@@ -1772,6 +1799,7 @@ int main(int argc, char *argv[])
 	if ((opt_api_version >= 1 || !opt_exec) && sync_pipe_fd >= 0) {
 		nwarnf("about to write pid to sync fd %d", container_pid);
 		write_sync_fd(sync_pipe_fd, container_pid, NULL);
+		nwarnf("wrote pid");
 	}
 
 	setup_oom_handling(container_pid);
@@ -1785,9 +1813,12 @@ int main(int argc, char *argv[])
 
 	if (opt_timeout > 0) {
 		g_timeout_add_seconds(opt_timeout, timeout_cb, NULL);
+		nwarnf("added timeout %d", opt_timeout);
 	}
 
+	nwarnf("checking children");
 	check_child_processes(pid_to_handler);
+	nwarnf("finished checking children");
 	/* There are three cases we want to run this main loop:
 	   1. If we are using the legacy API
 	   2. if we are running create or restore
@@ -1801,21 +1832,28 @@ int main(int argc, char *argv[])
 	       status if it is a quickly exiting command. We only want to run the loop if
 	       this hasn't happened yet.
 	*/
-	if (opt_api_version < 1 || !opt_exec || !opt_terminal || container_status < 0)
+	if (opt_api_version < 1 || !opt_exec || !opt_terminal || container_status < 0) {
+		nwarnf ("__FUNCTION__ = %s running main loop 2\n", __FUNCTION__);
 		g_main_loop_run(main_loop);
+		nwarnf ("__FUNCTION__ = %s quitting main loop 2\n", __FUNCTION__);
+	}
 
 	check_cgroup2_oom();
 
 	/* Drain stdout and stderr only if a timeout doesn't occur */
 	if (masterfd_stdout != -1 && !timed_out) {
+		nwarnf("draining stdio stdout");
 		g_unix_set_fd_nonblocking(masterfd_stdout, TRUE, NULL);
 		while (read_stdio(masterfd_stdout, STDOUT_PIPE, NULL))
 			;
+		nwarnf("drained stdio stdout");
 	}
 	if (masterfd_stderr != -1 && !timed_out) {
+		nwarnf("draining stdio stderr");
 		g_unix_set_fd_nonblocking(masterfd_stderr, TRUE, NULL);
 		while (read_stdio(masterfd_stderr, STDERR_PIPE, NULL))
 			;
+		nwarnf("drained stdio stderr");
 	}
 
 	sync_logs();
