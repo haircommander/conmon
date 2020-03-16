@@ -701,10 +701,40 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
 	struct conn_sock_s *sock = (struct conn_sock_s *)user_data;
 	ssize_t num_read = 0;
+	if ((condition & G_IO_ERR) != 0) {
+		nwarnf("got err");
+	}
+	if ((condition & G_IO_HUP) != 0) {
+		nwarnf("got hup");
+	}
+	if ((condition & G_IO_IN) != 0) {
+		nwarnf("got in");
+	}
+	
 
 	if ((condition & G_IO_IN) != 0) {
 		nwarnf("got some input");
-		num_read = splice(fd, NULL, masterfd_stdin, NULL, 1 << 20, 0);
+		int flags = fcntl(fd, F_GETFL, 0);
+		if (flags < 0) {
+			nwarnf("fail");
+		} else if ((flags & O_NONBLOCK) != 0) {
+			nwarnf("we have o nonblock");
+		} else {
+			nwarnf("we have no o nonblock");
+			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+		}
+
+		flags = fcntl(masterfd_stdin, F_GETFL, 0);
+		if (flags < 0) {
+			nwarnf("fail");
+		} else if ((flags & O_NONBLOCK) != 0) {
+			nwarnf("we have o nonblock");
+		} else {
+			nwarnf("we have no o nonblock");
+			fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+		}
+
+		num_read = splice(fd, NULL, masterfd_stdin, NULL, 1, SPLICE_F_NONBLOCK);
 		if (num_read > 0) {
 			nwarnf("1 continuing");
 			return G_SOURCE_CONTINUE;
@@ -724,6 +754,11 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 					nwarnf("2 continuing");
 					return G_SOURCE_CONTINUE;
 				}
+				if (num_read == 0) {
+					nwarnf("got nothing");
+				}
+				buf[num_read] = '\0';
+				nwarnf("got %s %d", buf, masterfd_stdin);
 
 				if (num_read > 0 && masterfd_stdin >= 0) {
 					if (write_all(masterfd_stdin, buf, num_read) < 0) {
@@ -754,7 +789,7 @@ static gboolean conn_sock_cb(int fd, GIOCondition condition, gpointer user_data)
 static gboolean attach_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
 	nwarnf ("__FUNCTION__ = %s\n", __FUNCTION__);
-	int conn_fd = accept(fd, NULL, NULL);
+	int conn_fd = accept4(fd, NULL, NULL, SOCK_NONBLOCK);
 	if (conn_fd == -1) {
 		if (errno != EWOULDBLOCK)
 			nwarn("Failed to accept client connection on attach socket");
@@ -1505,7 +1540,7 @@ int main(int argc, char *argv[])
 		 */
 
 		if (opt_stdin) {
-			if (pipe2(fds, O_CLOEXEC) < 0)
+			if (pipe2(fds, O_CLOEXEC ) < 0)
 				pexit("Failed to create !terminal stdin pipe");
 
 			masterfd_stdin = fds[1];
