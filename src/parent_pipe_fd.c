@@ -28,6 +28,7 @@ int get_pipe_fd_from_env(const char *envname)
 
 void write_sync_fd(int fd, int res, const char *message)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	const char *res_key;
 	if (opt_api_version >= 1)
 		res_key = "data";

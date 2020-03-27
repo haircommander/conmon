@@ -32,6 +32,7 @@ static int write_oom_files();
 
 void setup_oom_handling(int pid)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct statfs sfs;
 
 	if (statfs("/sys/fs/cgroup", &sfs) == 0 && sfs.f_type == CGROUP2_SUPER_MAGIC) {
@@ -48,6 +49,7 @@ void setup_oom_handling(int pid)
  */
 static char *process_cgroup_subsystem_path(int pid, bool cgroup2, const char *subsystem)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	_cleanup_free_ char *cgroups_file_path = g_strdup_printf("/proc/%d/cgroup", pid);
 	_cleanup_fclose_ FILE *fp = fopen(cgroups_file_path, "re");
 	if (fp == NULL) {
@@ -102,6 +104,7 @@ static char *process_cgroup_subsystem_path(int pid, bool cgroup2, const char *su
 
 static void setup_oom_handling_cgroup_v2(int pid)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	cgroup2_path = process_cgroup_subsystem_path(pid, true, "");
 	if (!cgroup2_path) {
 		nwarn("Failed to get cgroup path. Container may have exited");
@@ -130,6 +133,7 @@ static void setup_oom_handling_cgroup_v2(int pid)
 
 static void setup_oom_handling_cgroup_v1(int pid)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	/* Setup OOM notification for container process */
 	_cleanup_free_ char *memory_cgroup_path = process_cgroup_subsystem_path(pid, false, "memory");
 	if (!memory_cgroup_path) {
@@ -163,6 +167,7 @@ static void setup_oom_handling_cgroup_v1(int pid)
 
 static gboolean oom_cb_cgroup_v2(int fd, GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	const size_t events_size = sizeof(struct inotify_event) + NAME_MAX + 1;
 	char events[events_size];
 
@@ -189,6 +194,7 @@ static gboolean oom_cb_cgroup_v2(int fd, GIOCondition condition, G_GNUC_UNUSED g
  * used to verify the cgroup hasn't been cleaned up */
 static gboolean oom_cb_cgroup_v1(int fd, GIOCondition condition, gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	char *cgroup_event_control_path = (char *)user_data;
 	if ((condition & G_IO_IN) == 0) {
 		/* End of input */
@@ -253,6 +259,7 @@ static gboolean oom_cb_cgroup_v1(int fd, GIOCondition condition, gpointer user_d
 
 gboolean check_cgroup2_oom()
 {
+	ntracef("start function: %s", __FUNCTION__);
 	static long int last_counter = 0;
 
 	if (!is_cgroup_v2)
@@ -296,6 +303,7 @@ gboolean check_cgroup2_oom()
  */
 static int write_oom_files()
 {
+	ntracef("start function: %s", __FUNCTION__);
 	ninfo("OOM received");
 	if (opt_persist_path) {
 		_cleanup_free_ char *ctr_oom_file_path = g_build_filename(opt_persist_path, "oom", NULL);

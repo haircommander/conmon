@@ -155,6 +155,7 @@ static void parse_log_path(char *log_config)
 /* write container output to all logs the user defined */
 bool write_to_logs(stdpipe_t pipe, char *buf, ssize_t num_read)
 {
+	ntracef(": %s", __FUNCTION__);
 	if (use_k8s_logging && write_k8s_log(pipe, buf, num_read) < 0) {
 		nwarn("write_k8s_log failed");
 		return G_SOURCE_CONTINUE;
@@ -172,6 +173,7 @@ bool write_to_logs(stdpipe_t pipe, char *buf, ssize_t num_read)
  */
 int write_journald(int pipe, char *buf, ssize_t buflen)
 {
+	ntracef(": %s", __FUNCTION__);
 	/* When using writev_buffer_append_segment, we should never approach the number of
 	 * entries necessary to flush the buffer. Therefore, the fd passed in is for /dev/null
 	 */
@@ -248,6 +250,7 @@ int write_journald(int pipe, char *buf, ssize_t buflen)
  */
 static int write_k8s_log(stdpipe_t pipe, const char *buf, ssize_t buflen)
 {
+	ntracef(": %s", __FUNCTION__);
 	writev_buffer_t bufv = {0};
 	static int64_t bytes_written = 0;
 	int64_t bytes_to_be_written = 0;
@@ -502,6 +505,7 @@ static void reopen_k8s_file(void)
 
 void sync_logs(void)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	/* Sync the logs to disk */
 	if (k8s_log_fd > 0)
 		if (fsync(k8s_log_fd) < 0)

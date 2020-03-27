@@ -21,6 +21,7 @@ static void setup_fifo(int *fifo_r, int *fifo_w, char *filename, char *error_var
 
 gboolean terminal_accept_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 
 	ninfof("about to accept from console_socket_fd: %d", fd);
 	int connfd = accept4(fd, NULL, NULL, SOCK_CLOEXEC);
@@ -77,6 +78,7 @@ exit:
  */
 gboolean ctrl_winsz_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	return read_from_ctrl_buffer(fd, process_winsz_ctrl_line);
 }
 
@@ -87,6 +89,7 @@ gboolean ctrl_winsz_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUS
  */
 static gboolean process_winsz_ctrl_line(char *line)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	int height, width, ret = -1;
 	ret = sscanf(line, "%d %d\n", &height, &width);
 	ninfof("Height: %d, Width: %d", height, width);
@@ -103,6 +106,7 @@ static gboolean process_winsz_ctrl_line(char *line)
  */
 gboolean ctrl_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	return read_from_ctrl_buffer(fd, process_terminal_ctrl_line);
 }
 
@@ -114,6 +118,7 @@ gboolean ctrl_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpo
  */
 static gboolean process_terminal_ctrl_line(char *line)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	/* while the height and width won't be used in this function,
 	 * we want to remove them from the buffer anyway
 	 */
@@ -152,6 +157,7 @@ static gboolean process_terminal_ctrl_line(char *line)
  */
 static gboolean read_from_ctrl_buffer(int fd, gboolean (*line_process_func)(char *))
 {
+	ntracef("start function: %s", __FUNCTION__);
 #define CTLBUFSZ 200
 	static char ctlbuf[CTLBUFSZ];
 	static int readsz = CTLBUFSZ - 1;
@@ -207,6 +213,7 @@ static gboolean read_from_ctrl_buffer(int fd, gboolean (*line_process_func)(char
  */
 static void resize_winsz(int height, int width)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct winsize ws;
 	ws.ws_row = height;
 	ws.ws_col = width;
@@ -219,12 +226,14 @@ static void resize_winsz(int height, int width)
 
 void setup_console_fifo()
 {
+	ntracef("start function: %s", __FUNCTION__);
 	setup_fifo(&winsz_fd_r, &winsz_fd_w, "winsz", "window resize control fifo");
 	ninfof("winsz read side: %d, winsz write side: %d", winsz_fd_r, winsz_fd_r);
 }
 
 int setup_terminal_control_fifo()
 {
+	ntracef("start function: %s", __FUNCTION__);
 	/*
 	 * Open a dummy writer to prevent getting flood of POLLHUPs when
 	 * last writer closes.
@@ -239,6 +248,7 @@ int setup_terminal_control_fifo()
 
 static void setup_fifo(int *fifo_r, int *fifo_w, char *filename, char *error_var_name)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	_cleanup_free_ char *fifo_path = g_build_filename(opt_bundle_path, filename, NULL);
 
 	if (!fifo_r || !fifo_w)

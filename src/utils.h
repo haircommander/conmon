@@ -120,7 +120,7 @@ extern gboolean use_syslog;
 #define ntracef(fmt, ...) \
 		do { \
 			fprintf(stderr, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
-				syslog(LOG_INFO, "conmon %.20s <ntrace>: " fmt " \n", log_cid, ##__VA_ARGS__); \
+			syslog(LOG_INFO, "conmon %.20s <ntrace>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		} while (0)
 
 /* Set the log level for this call. log level defaults to warning.

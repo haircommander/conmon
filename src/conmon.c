@@ -302,11 +302,14 @@ int main(int argc, char *argv[])
 		g_unix_fd_add(console_socket_fd, G_IO_IN, terminal_accept_cb, csname);
 		/* Process any SIGCHLD we may have missed before the signal handler was in place.  */
 		check_child_processes(pid_to_handler);
-		if (!opt_exec || !opt_terminal || container_status < 0)
+		if (!opt_exec || !opt_terminal || container_status < 0) {
+			ntracef("running main loop conmon exec: %s", __FUNCTION__);
 			g_main_loop_run(main_loop);
+		}
 	} else {
 		int ret;
 		/* Wait for our create child to exit with the return code. */
+		ntracef("waiting for child: %s", __FUNCTION__);
 		do
 			ret = waitpid(create_pid, &runtime_status, 0);
 		while (ret < 0 && errno == EINTR);
@@ -321,7 +324,9 @@ int main(int argc, char *argv[])
 	}
 
 	if (!WIFEXITED(runtime_status) || WEXITSTATUS(runtime_status) != 0) {
+		ntracef("runtime failed: %s", __FUNCTION__);
 		if (sync_pipe_fd > 0) {
+			ntracef("writing to sync pipe: %s", __FUNCTION__);
 			/*
 			 * Read from container stderr for any error and send it to parent
 			 * We send -1 as pid to signal to parent that create container has failed.
@@ -393,8 +398,10 @@ int main(int argc, char *argv[])
 		but are not terminal. In this case, we still want to run to process all of the output,
 		but will need to exit once all the i/o is read. This will be handled in stdio_cb above.
 	*/
-	if (opt_api_version < 1 || !opt_exec || !opt_terminal || container_status < 0)
+	if (opt_api_version < 1 || !opt_exec || !opt_terminal || container_status < 0) {
+		ntracef("running main loop again: %s", __FUNCTION__);
 		g_main_loop_run(main_loop);
+	}
 
 	check_cgroup2_oom();
 
@@ -412,6 +419,7 @@ int main(int argc, char *argv[])
 	 * the timer elapsed. Ignore the timeout and treat it like a normal container exit.
 	 */
 	if (timed_out && container_pid > 0) {
+		ntracef("timed out: %s", __FUNCTION__);
 		pid_t process_group = getpgid(container_pid);
 
 		if (process_group > 0)
@@ -430,6 +438,7 @@ int main(int argc, char *argv[])
 	 */
 	DIR *fdsdir = opendir("/proc/self/fd");
 	if (fdsdir != NULL) {
+		ntracef("closing relevant fds: %s", __FUNCTION__);
 		int fd;
 		int dfd = dirfd(fdsdir);
 		struct dirent *next;
@@ -451,6 +460,7 @@ int main(int argc, char *argv[])
 
 	/* Write the exit file to container persistent directory if it is specified */
 	if (opt_persist_path) {
+		ntracef("writing to persist dir: %s", __FUNCTION__);
 		_cleanup_free_ char *ctr_exit_file_path = g_build_filename(opt_persist_path, "exit", NULL);
 		if (!g_file_set_contents(ctr_exit_file_path, status_str, -1, &err))
 			nexitf("Failed to write %s to container exit file: %s", status_str, err->message);
@@ -461,6 +471,7 @@ int main(int argc, char *argv[])
 	 * using inotify.
 	 */
 	if (opt_exit_dir) {
+		ntracef("writing to exit dir: %s", __FUNCTION__);
 		_cleanup_free_ char *exit_file_path = g_build_filename(opt_exit_dir, opt_cid, NULL);
 		if (!g_file_set_contents(exit_file_path, status_str, -1, &err))
 			nexitf("Failed to write %s to exit file: %s", status_str, err->message);
@@ -473,5 +484,6 @@ int main(int argc, char *argv[])
 	if (attach_symlink_dir_path != NULL && unlink(attach_symlink_dir_path) == -1 && errno != ENOENT)
 		pexit("Failed to remove symlink for attach socket directory");
 
+	ntracef("success: %s", __FUNCTION__);
 	return exit_status;
 }

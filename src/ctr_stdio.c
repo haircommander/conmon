@@ -16,6 +16,7 @@ static gboolean tty_hup_timeout_cb(G_GNUC_UNUSED gpointer user_data);
 
 gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	stdpipe_t pipe = GPOINTER_TO_INT(user_data);
 	gboolean read_eof = FALSE;
 	gboolean has_input = (condition & G_IO_IN) != 0;
@@ -85,6 +86,7 @@ gboolean stdio_cb(int fd, GIOCondition condition, gpointer user_data)
 
 void drain_stdio()
 {
+	ntracef("start function: %s", __FUNCTION__);
 	if (masterfd_stdout != -1) {
 		g_unix_set_fd_nonblocking(masterfd_stdout, TRUE, NULL);
 		while (read_stdio(masterfd_stdout, STDOUT_PIPE, NULL))
@@ -100,6 +102,7 @@ void drain_stdio()
 
 static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	/* We use two extra bytes. One at the start, which we don't read into, instead
 	   we use that for marking the pipe when we write to the attached socket.
 	   One at the end to guarentee a null-terminated buffer for journald logging*/
@@ -148,6 +151,7 @@ static bool read_stdio(int fd, stdpipe_t pipe, gboolean *eof)
 
 static gboolean tty_hup_timeout_cb(G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	tty_hup_timeout_scheduled = false;
 	g_unix_fd_add(masterfd_stdout, G_IO_IN, stdio_cb, GINT_TO_POINTER(STDOUT_PIPE));
 	return G_SOURCE_REMOVE;

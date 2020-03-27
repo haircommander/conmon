@@ -23,6 +23,7 @@ static gboolean masterfd_write_cb(G_GNUC_UNUSED int fd, G_GNUC_UNUSED GIOConditi
 
 char *setup_console_socket(void)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct sockaddr_un addr = {0};
 	_cleanup_free_ const char *tmpdir = g_get_tmp_dir();
 	_cleanup_free_ char *csname = g_build_filename(tmpdir, "conmon-term.XXXXXX", NULL);
@@ -60,6 +61,7 @@ char *setup_console_socket(void)
 
 char *setup_attach_socket(void)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct sockaddr_un attach_addr = {0};
 	attach_addr.sun_family = AF_UNIX;
 
@@ -118,6 +120,7 @@ char *setup_attach_socket(void)
 
 static gboolean attach_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	int conn_fd = accept(fd, NULL, NULL);
 	if (conn_fd == -1) {
 		if (errno != EWOULDBLOCK)
@@ -147,6 +150,7 @@ static gboolean attach_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_U
 
 static gboolean conn_sock_cb(G_GNUC_UNUSED int fd, GIOCondition condition, gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct conn_sock_s *sock = (struct conn_sock_s *)user_data;
 
 	if (condition & G_IO_IN)
@@ -157,6 +161,7 @@ static gboolean conn_sock_cb(G_GNUC_UNUSED int fd, GIOCondition condition, gpoin
 
 static gboolean read_conn_sock(struct conn_sock_s *sock)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	ssize_t num_read;
 
 	/* There is still data in the buffer.  */
@@ -187,6 +192,7 @@ static gboolean read_conn_sock(struct conn_sock_s *sock)
 
 static gboolean terminate_conn_sock(struct conn_sock_s *sock)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	conn_sock_shutdown(sock, SHUT_RD);
 	if (masterfd_stdin >= 0 && opt_stdin) {
 		if (!opt_leave_stdin_open) {
@@ -201,6 +207,7 @@ static gboolean terminate_conn_sock(struct conn_sock_s *sock)
 
 void conn_sock_shutdown(struct conn_sock_s *sock, int how)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	if (sock->fd == -1)
 		return;
 	shutdown(sock->fd, how);
@@ -225,6 +232,7 @@ void conn_sock_shutdown(struct conn_sock_s *sock, int how)
 
 static void write_to_masterfd_stdin(gpointer data, gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	struct conn_sock_s *sock = (struct conn_sock_s *)data;
 	bool *has_data = user_data;
 
@@ -240,6 +248,7 @@ static void write_to_masterfd_stdin(gpointer data, gpointer user_data)
 
 static void sock_try_write_to_masterfd_stdin(struct conn_sock_s *sock)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	if (!sock->remaining)
 		return;
 
@@ -254,6 +263,7 @@ static void sock_try_write_to_masterfd_stdin(struct conn_sock_s *sock)
 
 static gboolean masterfd_write_cb(G_GNUC_UNUSED int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_UNUSED gpointer user_data)
 {
+	ntracef("start function: %s", __FUNCTION__);
 	bool has_data = FALSE;
 
 	if (masterfd_stdin < 0)
