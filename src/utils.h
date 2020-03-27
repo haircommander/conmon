@@ -76,68 +76,52 @@ extern gboolean use_syslog;
 	} while (0)
 
 #define nwarn(s) \
-	if (log_level >= WARN_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:w]: %s\n", s); \
 				syslog(LOG_INFO, "conmon %.20s <nwarn>: %s\n", log_cid, s); \
-		} while (0); \
-	}
+		} while (0)
 
 #define nwarnf(fmt, ...) \
-	if (log_level >= WARN_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:w]: " fmt "\n", ##__VA_ARGS__); \
 				syslog(LOG_INFO, "conmon %.20s <nwarn>: " fmt " \n", log_cid, ##__VA_ARGS__); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ninfo(s) \
-	if (log_level >= INFO_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:i]: %s\n", s); \
 				syslog(LOG_INFO, "conmon %.20s <ninfo>: %s\n", log_cid, s); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ninfof(fmt, ...) \
-	if (log_level >= INFO_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:i]: " fmt "\n", ##__VA_ARGS__); \
 				syslog(LOG_INFO, "conmon %.20s <ninfo>: " fmt " \n", log_cid, ##__VA_ARGS__); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ndebug(s) \
-	if (log_level >= DEBUG_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:d]: %s\n", s); \
 				syslog(LOG_INFO, "conmon %.20s <ndebug>: %s\n", log_cid, s); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ndebugf(fmt, ...) \
-	if (log_level >= DEBUG_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
 				syslog(LOG_INFO, "conmon %.20s <ndebug>: " fmt " \n", log_cid, ##__VA_ARGS__); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ntrace(s) \
-	if (log_level >= TRACE_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:d]: %s\n", s); \
 				syslog(LOG_INFO, "conmon %.20s <ntrace>: %s\n", log_cid, s); \
-		} while (0); \
-	}
+		} while (0)
 
 #define ntracef(fmt, ...) \
-	if (log_level >= TRACE_LEVEL) { \
 		do { \
 			fprintf(stderr, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
 				syslog(LOG_INFO, "conmon %.20s <ntrace>: " fmt " \n", log_cid, ##__VA_ARGS__); \
-		} while (0); \
-	}
+		} while (0)
 
 /* Set the log level for this call. log level defaults to warning.
    parse the string value of level_name to the appropriate log_level_t enum value
