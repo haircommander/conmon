@@ -22,6 +22,13 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 
+static int fork_and_rotate_conmon_log(FILE **conmon_output_file) {
+	fclose(*conmon_output_file);
+	pid_t p = fork();
+	reopen_output_file(conmon_output_file);
+	return p;
+}
+
 int main(int argc, char *argv[])
 {
 	_cleanup_gerror_ GError *err = NULL;
@@ -36,7 +43,9 @@ int main(int argc, char *argv[])
 		exit(initialize_ec);
 	}
 
-	process_cli();
+	FILE *conmon_output_file = NULL;
+	//_cleanup_fclose_ FILE *conmon_output_file = NULL;
+	process_cli(&conmon_output_file);
 
 	attempt_oom_adjust();
 
@@ -66,10 +75,11 @@ int main(int argc, char *argv[])
 	if (dev_null_w < 0)
 		pexit("Failed to open /dev/null");
 
+	nwarnf("hi from %d %p", getpid(), conmon_output_file);
 	/* In the create-container case we double-fork in
 	   order to disconnect from the parent, as we want to
 	   continue in a daemon-like way */
-	pid_t main_pid = fork();
+	pid_t main_pid = fork_and_rotate_conmon_log(&conmon_output_file);
 	if (main_pid < 0) {
 		pexit("Failed to fork the create command");
 	} else if (main_pid != 0) {
@@ -81,9 +91,9 @@ int main(int argc, char *argv[])
 				nexitf("Failed to write conmon pidfile: %s", err->message);
 			}
 		}
-		exit(0);
+		return 0;
 	}
-
+	nwarnf("hello from %d %p", getpid(), conmon_output_file);
 	/* Environment variables */
 	sync_pipe_fd = get_pipe_fd_from_env("_OCI_SYNCPIPE");
 
@@ -197,7 +207,7 @@ int main(int argc, char *argv[])
 	 */
 
 	/* Create our container. */
-	create_pid = fork();
+	pid_t create_pid = fork_and_rotate_conmon_log(&conmon_output_file);
 	if (create_pid < 0) {
 		pexit("Failed to fork the create command");
 	} else if (!create_pid) {
@@ -263,6 +273,8 @@ int main(int argc, char *argv[])
 		execv(g_ptr_array_index(runtime_argv, 0), (char **)runtime_argv->pdata);
 		exit(127);
 	}
+
+	nwarnf("hello!");
 
 	if ((signal(SIGTERM, on_sig_exit) == SIG_ERR) || (signal(SIGQUIT, on_sig_exit) == SIG_ERR)
 	    || (signal(SIGINT, on_sig_exit) == SIG_ERR))

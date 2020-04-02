@@ -45,6 +45,7 @@ gchar **opt_exit_args = NULL;
 gboolean opt_replace_listen_pid = FALSE;
 char *opt_log_level = NULL;
 char *opt_log_tag = NULL;
+char *opt_output_file = NULL;
 GOptionEntry opt_entries[] = {
 	{"terminal", 't', 0, G_OPTION_ARG_NONE, &opt_terminal, "Terminal", NULL},
 	{"stdin", 'i', 0, G_OPTION_ARG_NONE, &opt_stdin, "Stdin", NULL},
@@ -87,6 +88,7 @@ GOptionEntry opt_entries[] = {
 	{"syslog", 0, 0, G_OPTION_ARG_NONE, &opt_syslog, "Log to syslog (use with cgroupfs cgroup manager)", NULL},
 	{"log-level", 0, 0, G_OPTION_ARG_STRING, &opt_log_level, "Print debug logs based on log level", NULL},
 	{"log-tag", 0, 0, G_OPTION_ARG_STRING, &opt_log_tag, "Additional tag to use for logging", NULL},
+	{"output-file", 0, 0, G_OPTION_ARG_STRING, &opt_output_file, "File to write conmon logs to", NULL},
 	{NULL, 0, 0, 0, NULL, NULL, NULL}};
 
 
@@ -112,10 +114,13 @@ int initialize_cli(int argc, char *argv[])
 	return -1;
 }
 
-void process_cli()
+void process_cli(FILE **conmon_output_file)
 {
+	opt_output_file = "/tmp/conmon-output";
 	/* Command line parameters */
-	set_conmon_logs(opt_log_level, opt_cid, opt_syslog, opt_log_tag);
+	set_conmon_logs(opt_log_level, opt_cid, opt_syslog, opt_log_tag, opt_output_file, conmon_output_file);
+
+	nwarnf("XXXX begin");
 
 
 	main_loop = g_main_loop_new(NULL, FALSE);
@@ -156,4 +161,13 @@ void process_cli()
 		opt_container_pid_file = g_strdup_printf("%s/pidfile-%s", cwd, opt_cid);
 
 	configure_log_drivers(opt_log_path, opt_log_size_max, opt_cid, opt_name, opt_log_tag);
+}
+
+void reopen_output_file(FILE** conmon_output_file)
+{
+	*conmon_output_file = fopen(opt_output_file, "a");
+	if (*conmon_output_file == NULL)
+		pexitf("failed to reopen conmon output file");
+
+	set_output_file(*conmon_output_file);
 }
