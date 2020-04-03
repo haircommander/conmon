@@ -23,9 +23,8 @@
 #include <sys/stat.h>
 
 static int fork_and_rotate_conmon_log(FILE **conmon_output_file) {
-	fclose(*conmon_output_file);
+	*conmon_output_file = close_output_file();
 	pid_t p = fork();
-	reopen_output_file(conmon_output_file);
 	return p;
 }
 
@@ -43,7 +42,7 @@ int main(int argc, char *argv[])
 		exit(initialize_ec);
 	}
 
-	FILE *conmon_output_file = NULL;
+	_cleanup_fclose_ FILE *conmon_output_file = NULL;
 	//_cleanup_fclose_ FILE *conmon_output_file = NULL;
 	process_cli(&conmon_output_file);
 
@@ -75,7 +74,6 @@ int main(int argc, char *argv[])
 	if (dev_null_w < 0)
 		pexit("Failed to open /dev/null");
 
-	nwarnf("hi from %d %p", getpid(), conmon_output_file);
 	/* In the create-container case we double-fork in
 	   order to disconnect from the parent, as we want to
 	   continue in a daemon-like way */
@@ -88,12 +86,18 @@ int main(int argc, char *argv[])
 			sprintf(content, "%i", main_pid);
 
 			if (!g_file_set_contents(opt_conmon_pid_file, content, strlen(content), &err)) {
-				nexitf("Failed to write conmon pidfile: %s", err->message);
+				pexitf("Failed to write conmon pidfile: %s", err->message);
 			}
 		}
 		return 0;
 	}
-	nwarnf("hello from %d %p", getpid(), conmon_output_file);
+	conmon_output_file = open_output_file(opt_output_file);
+	if (conmon_output_file == NULL)
+		pexitf("AAAHHH");
+	fseek(conmon_output_file, 0, SEEK_END);
+
+	fseek(conmon_output_file, 0, SEEK_END);
+
 	/* Environment variables */
 	sync_pipe_fd = get_pipe_fd_from_env("_OCI_SYNCPIPE");
 
@@ -104,7 +108,6 @@ int main(int argc, char *argv[])
 			pexit("--attach specified but _OCI_ATTACHPIPE was not");
 		}
 	}
-
 
 	/* Disconnect stdio from parent. We need to do this, because
 	   the parent is waiting for the stdout to end when the intermediate
@@ -274,6 +277,10 @@ int main(int argc, char *argv[])
 		exit(127);
 	}
 
+	conmon_output_file = open_output_file(opt_output_file);
+	if (conmon_output_file == NULL)
+		pexitf("AAAHHH");
+	nwarnf("hello!1");
 	nwarnf("hello!");
 
 	if ((signal(SIGTERM, on_sig_exit) == SIG_ERR) || (signal(SIGQUIT, on_sig_exit) == SIG_ERR)
@@ -509,5 +516,6 @@ int main(int argc, char *argv[])
 	if (attach_symlink_dir_path != NULL && unlink(attach_symlink_dir_path) == -1 && errno != ENOENT)
 		pexit("Failed to remove symlink for attach socket directory");
 
+	close_output_file(conmon_output_file);
 	return exit_status;
 }

@@ -35,19 +35,31 @@ extern log_level_t log_level;
 extern char *log_cid;
 extern gboolean use_syslog;
 extern FILE *output_file;
-void set_output_file(FILE *fp);
+FILE* open_output_file(const char* filename);
+FILE* close_output_file();
 
 #define _pexit(s) \
 	do { \
-		fprintf(output_file, "[conmon:e]: %s %s\n", s, strerror(errno)); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e]: %s %s\n", s, strerror(errno)); \
 		if (use_syslog) \
 			syslog(LOG_ERR, "conmon %.20s <error>: %s %s\n", log_cid, s, strerror(errno)); \
 		_exit(EXIT_FAILURE); \
 	} while (0)
 
+#define _pexitf(fmt, ...) \
+	do { \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e]: " fmt " %s\n", ##__VA_ARGS__, strerror(errno)); \
+		if (use_syslog) \
+			syslog(LOG_ERR, "conmon %.20s <error>: " fmt ": %s\n", log_cid, ##__VA_ARGS__, strerror(errno)); \
+		_exit(EXIT_FAILURE); \
+	} while (0)
+
 #define pexit(s) \
 	do { \
-		fprintf(output_file, "[conmon:e]: %s %s\n", s, strerror(errno)); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e]: %s %s\n", s, strerror(errno)); \
 		if (use_syslog) \
 			syslog(LOG_ERR, "conmon %.20s <error>: %s %s\n", log_cid, s, strerror(errno)); \
 		exit(EXIT_FAILURE); \
@@ -55,7 +67,8 @@ void set_output_file(FILE *fp);
 
 #define pexitf(fmt, ...) \
 	do { \
-		fprintf(output_file, "[conmon:e]: " fmt " %s\n", ##__VA_ARGS__, strerror(errno)); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e]: " fmt " %s\n", ##__VA_ARGS__, strerror(errno)); \
 		if (use_syslog) \
 			syslog(LOG_ERR, "conmon %.20s <error>: " fmt ": %s\n", log_cid, ##__VA_ARGS__, strerror(errno)); \
 		exit(EXIT_FAILURE); \
@@ -63,14 +76,16 @@ void set_output_file(FILE *fp);
 
 #define pwarn(s) \
 	do { \
-		fprintf(output_file, "[conmon:w]: %s %s\n", s, strerror(errno)); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:w]: %s %s\n", s, strerror(errno)); \
 		if (use_syslog) \
 			syslog(LOG_INFO, "conmon %.20s <pwarn>: %s %s\n", log_cid, s, strerror(errno)); \
 	} while (0)
 
 #define nexit(s) \
 	do { \
-		fprintf(output_file, "[conmon:e] %s\n", s); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e] %s\n", s); \
 		if (use_syslog) \
 			syslog(LOG_ERR, "conmon %.20s <error>: %s\n", log_cid, s); \
 		exit(EXIT_FAILURE); \
@@ -78,7 +93,8 @@ void set_output_file(FILE *fp);
 
 #define nexitf(fmt, ...) \
 	do { \
-		fprintf(output_file, "[conmon:e]: " fmt "\n", ##__VA_ARGS__); \
+		if (output_file != NULL) \
+			fprintf(output_file, "[conmon:e]: " fmt "\n", ##__VA_ARGS__); \
 		if (use_syslog) \
 			syslog(LOG_ERR, "conmon %.20s <error>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		exit(EXIT_FAILURE); \
@@ -87,7 +103,8 @@ void set_output_file(FILE *fp);
 #define nwarn(s) \
 	if (log_level >= WARN_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:w]: %s\n", s); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:w]: %s\n", s); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <nwarn>: %s\n", log_cid, s); \
 		} while (0); \
@@ -96,7 +113,8 @@ void set_output_file(FILE *fp);
 #define nwarnf(fmt, ...) \
 	if (log_level >= WARN_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:w]: " fmt "\n", ##__VA_ARGS__); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:w]: " fmt "\n", ##__VA_ARGS__); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <nwarn>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		} while (0); \
@@ -105,7 +123,8 @@ void set_output_file(FILE *fp);
 #define ninfo(s) \
 	if (log_level >= INFO_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:i]: %s\n", s); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:i]: %s\n", s); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ninfo>: %s\n", log_cid, s); \
 		} while (0); \
@@ -114,7 +133,8 @@ void set_output_file(FILE *fp);
 #define ninfof(fmt, ...) \
 	if (log_level >= INFO_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:i]: " fmt "\n", ##__VA_ARGS__); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:i]: " fmt "\n", ##__VA_ARGS__); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ninfo>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		} while (0); \
@@ -123,7 +143,8 @@ void set_output_file(FILE *fp);
 #define ndebug(s) \
 	if (log_level >= DEBUG_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:d]: %s\n", s); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:d]: %s\n", s); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ndebug>: %s\n", log_cid, s); \
 		} while (0); \
@@ -132,7 +153,8 @@ void set_output_file(FILE *fp);
 #define ndebugf(fmt, ...) \
 	if (log_level >= DEBUG_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ndebug>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		} while (0); \
@@ -141,7 +163,8 @@ void set_output_file(FILE *fp);
 #define ntrace(s) \
 	if (log_level >= TRACE_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:d]: %s\n", s); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:d]: %s\n", s); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ntrace>: %s\n", log_cid, s); \
 		} while (0); \
@@ -150,7 +173,8 @@ void set_output_file(FILE *fp);
 #define ntracef(fmt, ...) \
 	if (log_level >= TRACE_LEVEL) { \
 		do { \
-			fprintf(output_file, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
+			if (output_file != NULL) \
+				fprintf(output_file, "[conmon:d]: " fmt "\n", ##__VA_ARGS__); \
 			if (use_syslog) \
 				syslog(LOG_INFO, "conmon %.20s <ntrace>: " fmt " \n", log_cid, ##__VA_ARGS__); \
 		} while (0); \
@@ -177,8 +201,12 @@ static inline void closep(int *fd)
 
 static inline void fclosep(FILE **fp)
 {
-	if (*fp)
+	syslog(LOG_INFO, "conmon %.20s <ntrace>: closing in fclosep %d \n", log_cid, getpid());
+	if (*fp) {
+		syslog(LOG_INFO, "conmon %.20s <ntrace>: closing in fclosep %d \n", log_cid, getpid());
+		fflush(*fp);
 		fclose(*fp);
+	}
 	*fp = NULL;
 }
 

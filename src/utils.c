@@ -10,8 +10,17 @@ FILE *output_file = NULL;
 /* Set the log level for this call. log level defaults to warning.
    parse the string value of level_name to the appropriate log_level_t enum value
 */
-void set_output_file(FILE *fp) {
-	output_file = fp;
+FILE* open_output_file(const char* filename)
+{
+	output_file = fopen(filename, "a");
+	return output_file;
+}
+
+FILE* close_output_file()
+{
+	fflush(output_file);
+	fclose(output_file);
+	return NULL;
 }
 void set_conmon_logs(char *level_name, char *cid_, gboolean syslog_, char *tag, char *opt_output_file_, FILE **conmon_output_file_)
 {
@@ -22,8 +31,7 @@ void set_conmon_logs(char *level_name, char *cid_, gboolean syslog_, char *tag, 
 
 	output_file = stderr;
 	if (opt_output_file_ != NULL) {
-		output_file = fopen(opt_output_file_, "a");
-		*conmon_output_file_ = output_file;
+		*conmon_output_file_ = open_output_file(opt_output_file_);
 	}
 
 

@@ -162,12 +162,3 @@ void process_cli(FILE **conmon_output_file)
 
 	configure_log_drivers(opt_log_path, opt_log_size_max, opt_cid, opt_name, opt_log_tag);
 }
-
-void reopen_output_file(FILE** conmon_output_file)
-{
-	*conmon_output_file = fopen(opt_output_file, "a");
-	if (*conmon_output_file == NULL)
-		pexitf("failed to reopen conmon output file");
-
-	set_output_file(*conmon_output_file);
-}

@@ -44,6 +44,5 @@ extern GOptionEntry opt_entries[];
 
 int initialize_cli(int argc, char *argv[]);
 void process_cli(FILE **conmon_output_file);
-void reopen_output_file(FILE** conmon_output_file);
 
 #endif // CLI_H
