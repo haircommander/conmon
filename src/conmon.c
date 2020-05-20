@@ -6,6 +6,7 @@
 #endif
 
 #include "utils.h"
+#include "pinns.h"
 #include "ctr_logging.h"
 #include "cgroup.h"
 #include "cli.h"
@@ -21,6 +22,7 @@
 
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sched.h>
 
 int main(int argc, char *argv[])
 {
@@ -196,11 +198,15 @@ int main(int argc, char *argv[])
 	 * won't be the case for very long.
 	 */
 
+	if (unshare(CLONE_NEWPID) < 0)
+		pexit("failed to create new pid namespace for child");
+
 	/* Create our container. */
 	create_pid = fork();
 	if (create_pid < 0) {
 		pexit("Failed to fork the create command");
 	} else if (!create_pid) {
+		nwarnf("in child! %d", getpid());
 		if (prctl(PR_SET_PDEATHSIG, SIGKILL) < 0)
 			pexit("Failed to set PDEATHSIG");
 		if (sigprocmask(SIG_SETMASK, &oldmask, NULL) < 0)
@@ -260,9 +266,13 @@ int main(int argc, char *argv[])
 			}
 		}
 
+	//	if (bind_pid_ns("/var/run", "filename") < 0)
+	//		pexit("failed to unshare and bind");	
+
 		execv(g_ptr_array_index(runtime_argv, 0), (char **)runtime_argv->pdata);
 		exit(127);
 	}
+	
 
 	if ((signal(SIGTERM, on_sig_exit) == SIG_ERR) || (signal(SIGQUIT, on_sig_exit) == SIG_ERR)
 	    || (signal(SIGINT, on_sig_exit) == SIG_ERR))
@@ -280,14 +290,18 @@ int main(int argc, char *argv[])
 	 * Glib does not support SIGCHLD so use SIGUSR1 with the same semantic.  We will
 	 * catch SIGCHLD and raise(SIGUSR1) in the signal handler.
 	 */
+	nwarnf("hi5");
 	struct pid_check_data data = {
 		.pid_to_handler = pid_to_handler,
 		.exit_status_cache = NULL,
 	};
 	g_unix_signal_add(SIGUSR1, on_sigusr1_cb, &data);
 
+	nwarnf("hi4");
 	if (signal(SIGCHLD, on_sigchld) == SIG_ERR)
 		pexit("Failed to set handler for SIGCHLD");
+
+	nwarnf("hi3");
 
 	if (opt_exit_command)
 		atexit(do_exit_command);
@@ -303,15 +317,18 @@ int main(int argc, char *argv[])
 		close(slavefd_stderr);
 
 	if (csname != NULL) {
+		nwarnf("hi");
 		g_unix_fd_add(console_socket_fd, G_IO_IN, terminal_accept_cb, csname);
 		/* Process any SIGCHLD we may have missed before the signal handler was in place.  */
 		if (!opt_exec || !opt_terminal || container_status < 0) {
 			GHashTable *exit_status_cache = g_hash_table_new_full(g_int_hash, g_int_equal, g_free, g_free);
 			data.exit_status_cache = exit_status_cache;
 			g_idle_add(check_child_processes_cb, &data);
+			nwarnf("hi");
 			g_main_loop_run(main_loop);
 		}
 	} else {
+			nwarnf("hi2");
 		int ret;
 		/* Wait for our create child to exit with the return code. */
 		do
@@ -325,6 +342,7 @@ int main(int argc, char *argv[])
 			}
 			pexitf("Failed to wait for `runtime %s`", opt_exec ? "exec" : "create");
 		}
+			nwarnf("hi2");
 	}
 
 	if (!WIFEXITED(runtime_status) || WEXITSTATUS(runtime_status) != 0) {
