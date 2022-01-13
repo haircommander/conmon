@@ -73,7 +73,7 @@ gboolean seccomp_accept_cb(int fd, G_GNUC_UNUSED GIOCondition condition, G_GNUC_
 	struct file_t listener = recvfd(connfd);
 	close(connfd);
 
-	_cleanup_free_ char *oci_config_path = g_strdup_printf("%s/config.json", opt_bundle_path);
+	_cleanup_gchar_ gchar *oci_config_path = g_strdup_printf("%s/config.json", opt_bundle_path);
 	if (oci_config_path == NULL) {
 		nwarn("Failed to allocate memory");
 		return G_SOURCE_CONTINUE;

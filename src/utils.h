@@ -188,10 +188,10 @@ static inline void fclosep(FILE **fp)
 	*fp = NULL;
 }
 
-static inline void gstring_free_cleanup(GString **string)
+static inline void gchar_free_cleanup(gchar **string)
 {
 	if (*string)
-		g_string_free(*string, TRUE);
+		g_free(*string);
 }
 
 static inline void gerror_free_cleanup(GError **err)
@@ -215,7 +215,7 @@ static inline void hashtable_free_cleanup(GHashTable **tbl)
 #define _cleanup_free_ _cleanup_(freep)
 #define _cleanup_close_ _cleanup_(closep)
 #define _cleanup_fclose_ _cleanup_(fclosep)
-#define _cleanup_gstring_ _cleanup_(gstring_free_cleanup)
+#define _cleanup_gchar_ _cleanup_(gchar_free_cleanup)
 #define _cleanup_gerror_ _cleanup_(gerror_free_cleanup)
 #define _cleanup_strv_ _cleanup_(strv_cleanup)
 #define _cleanup_hashtable_ _cleanup_(hashtable_free_cleanup)

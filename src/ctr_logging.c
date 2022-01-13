@@ -262,7 +262,7 @@ int write_journald(int pipe, char *buf, ssize_t buflen)
 		char tmp_line_end = buf[line_len];
 		buf[line_len] = '\0';
 
-		_cleanup_free_ char *message = g_strdup_printf("MESSAGE=%s", buf);
+		_cleanup_gchar_ gchar *message = g_strdup_printf("MESSAGE=%s", buf);
 		if (writev_buffer_append_segment(dev_null, &bufv, message, line_len + MESSAGE_EQ_LEN) < 0)
 			return -1;
 
